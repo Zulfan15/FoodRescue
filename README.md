@@ -35,7 +35,7 @@ A comprehensive web application that connects food donors with recipients within
 
 - **Frontend**: Next.js 14 with TypeScript and App Router
 - **Styling**: Tailwind CSS with custom design system
-- **Database**: MongoDB with Mongoose ODM
+- **Database**: MySQL with Prisma ORM
 - **Authentication**: JWT-based with role-based access control
 - **Maps**: React Leaflet for interactive mapping
 - **Notifications**: Real-time updates with React Toastify
@@ -45,7 +45,7 @@ A comprehensive web application that connects food donors with recipients within
 
 ### Prerequisites
 - Node.js 18+ 
-- MongoDB (local or Atlas)
+- MySQL 8.0+ (local or hosted)
 - npm or yarn package manager
 
 ### Setup Instructions
@@ -65,7 +65,7 @@ A comprehensive web application that connects food donors with recipients within
    Create a `.env.local` file in the root directory:
    ```env
    # Database
-   MONGODB_URI=mongodb://localhost:27017/foodrescue
+   DATABASE_URL="mysql://username:password@localhost:3306/foodrescue"
 
    # Authentication
    NEXTAUTH_SECRET=your-secret-key-here
@@ -82,10 +82,11 @@ A comprehensive web application that connects food donors with recipients within
    EMAIL_FROM=noreply@foodrescue.com
    ```
 
-4. **Start MongoDB**
-   If using local MongoDB:
+4. **Set up the database**
+   Initialize Prisma and run migrations:
    ```bash
-   mongod
+   npx prisma generate
+   npx prisma db push
    ```
 
 5. **Run the development server**
@@ -98,32 +99,93 @@ A comprehensive web application that connects food donors with recipients within
 
 ## 🗄️ Database Schema
 
-### User Model
-```typescript
-{
-  name: string
-  email: string (unique)
-  password: string (hashed)
-  role: 'donor' | 'recipient' | 'admin'
-  location: { latitude, longitude, address }
-  verified: boolean
-  preferences: { notifications, radius }
-  stats: { donationsGiven, donationsReceived }
+### User Model (Prisma)
+```prisma
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  password      String
+  role          Role      @default(RECIPIENT)
+  latitude      Float?
+  longitude     Float?
+  address       String?
+  verified      Boolean   @default(false)
+  profilePicture String?
+  phone         String?
+  organization  String?
+  notifications Boolean   @default(true)
+  radius        Int       @default(5)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  donations     FoodDonation[]
+  reservations  Reservation[]
+  reviews       Review[]
+  
+  @@map("users")
+}
+
+enum Role {
+  DONOR
+  RECIPIENT
+  ADMIN
 }
 ```
 
-### Food Donation Model
-```typescript
-{
-  title: string
-  description: string
-  category: 'prepared' | 'packaged' | 'fresh' | 'baked' | 'frozen'
-  quantity: number
-  expiryDate: Date
-  location: { latitude, longitude, address }
-  status: 'available' | 'reserved' | 'picked_up' | 'cancelled'
-  verificationStatus: 'pending' | 'approved' | 'rejected'
-  dietaryInfo: { vegetarian, vegan, glutenFree, halal, kosher }
+### Food Donation Model (Prisma)
+```prisma
+model FoodDonation {
+  id                 String             @id @default(cuid())
+  title              String
+  description        String             @db.Text
+  category           FoodCategory
+  quantity           Int
+  expiryDate         DateTime
+  latitude           Float
+  longitude          Float
+  address            String
+  status             DonationStatus     @default(AVAILABLE)
+  verificationStatus VerificationStatus @default(PENDING)
+  donorId            String
+  images             String[]
+  
+  // Dietary information
+  vegetarian         Boolean            @default(false)
+  vegan              Boolean            @default(false)
+  glutenFree         Boolean            @default(false)
+  halal              Boolean            @default(false)
+  kosher             Boolean            @default(false)
+  
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  
+  donor              User               @relation(fields: [donorId], references: [id])
+  reservations       Reservation[]
+  reviews            Review[]
+  
+  @@map("food_donations")
+}
+
+enum FoodCategory {
+  PREPARED
+  PACKAGED
+  FRESH
+  BAKED
+  FROZEN
+}
+
+enum DonationStatus {
+  AVAILABLE
+  RESERVED
+  PICKED_UP
+  CANCELLED
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 ```
 
@@ -184,7 +246,7 @@ npm run test:coverage
 
 - **Image Optimization**: Next.js Image component with automatic optimization
 - **Code Splitting**: Automatic code splitting with Next.js App Router
-- **Database Indexing**: Optimized MongoDB queries with proper indexes
+- **Database Indexing**: Optimized MySQL queries with proper indexes
 - **Caching**: Strategic caching for frequently accessed data
 - **Lazy Loading**: Map components loaded on demand
 
@@ -197,7 +259,7 @@ npm start
 ```
 
 ### Environment Setup
-- Configure production MongoDB URI
+- Configure production MySQL URI
 - Set up proper domain and SSL certificates
 - Configure email service for notifications
 - Set up map API keys and quotas
