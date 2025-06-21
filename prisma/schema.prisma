@@ -1,0 +1,197 @@
+// FoodRescue Prisma Schema
+// MySQL Database Configuration
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      UserRole @default(RECIPIENT)
+  phone     String?
+  address   String?
+  latitude  Float?
+  longitude Float?
+  avatar    String?
+  isVerified Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  donations    FoodDonation[] @relation("DonorDonations")
+  reservations Reservation[]
+  reviews      Review[]       @relation("UserReviews")
+  givenReviews Review[]       @relation("ReviewGiver")
+  notifications Notification[]
+  reports      Report[]
+
+  @@map("users")
+}
+
+model FoodDonation {
+  id          String           @id @default(cuid())
+  title       String
+  description String           // SQLite doesn't need @db.Text
+  category    FoodCategory
+  quantity    Int
+  unit        String          // kg, porsi, box, etc
+  expiry      DateTime
+  images      String?         // JSON array of image URLs
+  address     String
+  latitude    Float
+  longitude   Float
+  status      DonationStatus  @default(AVAILABLE)
+  isVerified  Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  
+  // Foreign Keys
+  donorId     String
+  donor       User            @relation("DonorDonations", fields: [donorId], references: [id], onDelete: Cascade)
+  
+  // Relations
+  reservations Reservation[]
+  reviews      Review[]
+  reports      Report[]
+
+  @@map("food_donations")
+}
+
+model Reservation {
+  id         String            @id @default(cuid())
+  quantity   Int
+  message    String?           // SQLite doesn't need @db.Text
+  status     ReservationStatus @default(PENDING)
+  pickupTime DateTime?
+  pickedUpAt DateTime?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  
+  // Foreign Keys
+  userId     String
+  donationId String
+  
+  // Relations
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  donation   FoodDonation     @relation(fields: [donationId], references: [id], onDelete: Cascade)
+  reviews    Review[]
+
+  @@map("reservations")
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  rating     Int      // 1-5 stars
+  comment    String?  // SQLite doesn't need @db.Text
+  createdAt  DateTime @default(now())
+  
+  // Foreign Keys
+  userId     String   // Who gave the review
+  reviewedUserId String // Who received the review
+  donationId String?
+  reservationId String?
+  
+  // Relations
+  user         User         @relation("ReviewGiver", fields: [userId], references: [id], onDelete: Cascade)
+  reviewedUser User         @relation("UserReviews", fields: [reviewedUserId], references: [id], onDelete: Cascade)
+  donation     FoodDonation? @relation(fields: [donationId], references: [id], onDelete: Cascade)
+  reservation  Reservation? @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+
+  @@map("reviews")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  title     String
+  message   String           // SQLite doesn't need @db.Text
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  data      String?          // JSON data for additional info
+  createdAt DateTime         @default(now())
+  
+  // Foreign Keys
+  userId    String
+  
+  // Relations
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model Report {
+  id         String     @id @default(cuid())
+  reason     String
+  message    String?    // SQLite doesn't need @db.Text
+  status     ReportStatus @default(PENDING)
+  createdAt  DateTime   @default(now())
+  resolvedAt DateTime?
+  
+  // Foreign Keys
+  reporterId String
+  donationId String?
+  
+  // Relations
+  reporter   User         @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  donation   FoodDonation? @relation(fields: [donationId], references: [id], onDelete: Cascade)
+
+  @@map("reports")
+}
+
+// Enums
+enum UserRole {
+  DONOR
+  RECIPIENT
+  ADMIN
+}
+
+enum FoodCategory {
+  VEGETABLES
+  FRUITS
+  DAIRY
+  MEAT
+  GRAINS
+  PREPARED_MEALS
+  BAKERY
+  BEVERAGES
+  OTHERS
+}
+
+enum DonationStatus {
+  AVAILABLE
+  RESERVED
+  COMPLETED
+  EXPIRED
+  CANCELLED
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  PICKED_UP
+  CANCELLED
+  NO_SHOW
+}
+
+enum NotificationType {
+  DONATION_POSTED
+  RESERVATION_MADE
+  RESERVATION_CONFIRMED
+  PICKUP_REMINDER
+  REVIEW_RECEIVED
+  SYSTEM_ALERT
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+  DISMISSED
+}
